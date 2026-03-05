@@ -124,7 +124,7 @@ function init() {
   autosaveToggle.addEventListener("change", () => {
     state.autosaveEnabled = autosaveToggle.checked;
     applyStorageHint();
-    saveState();
+    saveState(true);
   });
 
   submitBtn.addEventListener("click", handleSubmit);
@@ -454,7 +454,7 @@ function loadState() {
   }
 }
 
-function saveState() {
-  if (!state.autosaveEnabled) return;
+function saveState(force = false) {
+  if (!force && !state.autosaveEnabled) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
