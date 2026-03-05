@@ -2,24 +2,22 @@ const STORAGE_KEY = "prompt-generator-state-v1";
 const HOWTO_KEY = "prompt-generator-howto-closed";
 
 const CATEGORY_OPTIONS = [
-  ["要件定義・仕様整理", "機能や条件を整理して、作る前の設計を固めます。"],
-  ["画面設計（情報設計）", "ページ構成や導線【ユーザーの移動】を決めます。"],
-  ["UIデザイン方針 → 実装ガイド", "見た目ルールを決めて実装につなげます。"],
-  ["HTML/CSS/JS 実装（静的サイト/部品）", "3ファイル中心で動く画面を作ります。"],
-  ["既存コード改修（差分・互換性優先）", "今あるコードを壊さず直す方針です。"],
-  ["不具合調査・原因切り分け", "原因の仮説と検証手順を明確にします。"],
-  ["自動化・運用設計（バッチ/定期処理）", "繰り返し作業を安全に回す設計を作ります。"],
-  ["ブラウザ拡張機能（MV3/Thunderbird等）設計・実装", "拡張機能の構成と実装の流れを固めます。"],
+  ["要件定義・仕様整理", "作る前の条件を整理します"],
+  ["画面設計（情報設計）", "ページ構成と導線を決めます"],
+  ["UIデザイン方針 → 実装ガイド", "見た目ルールを実装へつなげます"],
+  ["HTML/CSS/JS 実装（静的サイト/部品）", "3ファイルで画面を作ります"],
+  ["既存コード改修（差分・互換性優先）", "今あるコードを安全に直します"],
+  ["不具合調査・原因切り分け", "原因と検証手順を明確にします"],
+  ["自動化・運用設計（バッチ/定期処理）", "定期作業を安定して回します"],
+  ["ブラウザ拡張機能（MV3/Thunderbird等）設計・実装", "拡張機能の設計と実装を行います"],
 ];
 
 const QUESTIONS = [
   {
     key: "category",
-    label: "用途カテゴリを選んでください（番号で入力）",
-    placeholder:
-      "例: 4（HTML/CSS/JS 実装）",
+    label: "用途カテゴリをカードから選んでください",
+    placeholder: "カテゴリは上のカードから選択してください",
     optional: false,
-    helper: CATEGORY_OPTIONS.map((item, idx) => `${idx + 1}. ${item[0]}：${item[1]}`).join("\n"),
   },
   {
     key: "siteType",
@@ -84,13 +82,16 @@ const DEFAULT_STATE = {
 };
 
 let state = loadState();
+let isFreeQuestionMode = false;
 
 const progressText = document.getElementById("progressText");
 const howToCard = document.getElementById("howToCard");
 const closeHowToBtn = document.getElementById("closeHowToBtn");
 const autosaveToggle = document.getElementById("autosaveToggle");
 const storageHint = document.getElementById("storageHint");
+const clearStorageBtn = document.getElementById("clearStorageBtn");
 const chatLogEl = document.getElementById("chatLog");
+const categoryPicker = document.getElementById("categoryPicker");
 const questionLabel = document.getElementById("questionLabel");
 const answerInput = document.getElementById("answerInput");
 const submitBtn = document.getElementById("submitBtn");
@@ -104,7 +105,6 @@ const resultText = document.getElementById("resultText");
 const copyPromptBtn = document.getElementById("copyPromptBtn");
 const backToEditBtn = document.getElementById("backToEditBtn");
 const resetAllBtn = document.getElementById("resetAllBtn");
-const clearStorageBtn = document.getElementById("clearStorageBtn");
 const freeQuestionList = document.getElementById("freeQuestionList");
 const copyFreeListBtn = document.getElementById("copyFreeListBtn");
 
@@ -127,16 +127,18 @@ function init() {
     saveState();
   });
 
+  clearStorageBtn.addEventListener("click", handleClearStorage);
   submitBtn.addEventListener("click", handleSubmit);
-  addFreeBtn.addEventListener("click", handleAddFreeQuestion);
+  addFreeBtn.addEventListener("click", toggleFreeQuestionMode);
   resetBtn.addEventListener("click", handleResetAll);
   resetAllBtn.addEventListener("click", handleResetAll);
-  clearStorageBtn.addEventListener("click", handleClearStorage);
+
   copyPromptBtn.addEventListener("click", () => copyText(resultText.value));
   backToEditBtn.addEventListener("click", () => {
     state.mode = "collect";
     renderAll();
   });
+
   copyFreeListBtn.addEventListener("click", () => {
     const text = state.freeQuestions.length
       ? state.freeQuestions.map((q) => `- ${q}`).join("\n")
@@ -145,6 +147,13 @@ function init() {
   });
 
   answerInput.addEventListener("input", () => {
+    if (!isFreeQuestionMode && state.mode === "collect") {
+      const current = QUESTIONS[state.stepIndex];
+      if (current && current.key !== "category") {
+        state.flowAnswers[current.key] = answerInput.value;
+      }
+    }
+
     if (state.autosaveEnabled) {
       saveState();
     }
@@ -173,6 +182,7 @@ function renderAll() {
   renderProgress();
   renderChatLog();
   renderQuestionInputArea();
+  renderCategoryPicker();
   renderResult();
   scrollChatToBottom();
 }
@@ -184,6 +194,7 @@ function renderProgress() {
 
 function renderChatLog() {
   chatLogEl.innerHTML = "";
+
   state.chatLog.forEach((entry) => {
     const div = document.createElement("div");
     div.className = `bubble ${entry.type}`;
@@ -196,9 +207,72 @@ function renderChatLog() {
   }
 }
 
+function renderCategoryPicker() {
+  const show = state.mode === "collect" && state.stepIndex === 0;
+  categoryPicker.classList.toggle("hidden", !show);
+  if (!show) {
+    categoryPicker.innerHTML = "";
+    return;
+  }
+
+  const current = state.flowAnswers.category;
+  const wrap = document.createElement("div");
+
+  const title = document.createElement("p");
+  title.className = "category-title";
+  title.textContent = "カテゴリ選択（クリックまたはEnter/Space）";
+  wrap.appendChild(title);
+
+  const grid = document.createElement("div");
+  grid.className = "category-grid";
+
+  CATEGORY_OPTIONS.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "category-card";
+    button.setAttribute("role", "radio");
+    button.setAttribute("aria-checked", String(current === item[0]));
+
+    if (current === item[0]) {
+      button.classList.add("selected");
+    }
+
+    button.innerHTML = `
+      <span class="category-no">${index + 1}</span>
+      <span class="category-name">${item[0]}</span>
+      <span class="category-desc">${item[1]}</span>
+    `;
+
+    button.addEventListener("click", () => selectCategory(item[0]));
+    button.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        selectCategory(item[0]);
+      }
+    });
+
+    grid.appendChild(button);
+  });
+
+  wrap.appendChild(grid);
+
+  const help = document.createElement("details");
+  help.innerHTML = "<summary>補足（カテゴリの見分け方）</summary><p>迷ったら「4. HTML/CSS/JS 実装」から始めると進めやすいです。</p>";
+  wrap.appendChild(help);
+
+  categoryPicker.innerHTML = "";
+  categoryPicker.appendChild(wrap);
+}
+
+function selectCategory(categoryName) {
+  state.flowAnswers.category = categoryName;
+  if (state.autosaveEnabled) saveState();
+  renderCategoryPicker();
+}
+
 function renderQuestionInputArea() {
-  const question = QUESTIONS[state.stepIndex];
   const inCollect = state.mode === "collect";
+  const question = QUESTIONS[state.stepIndex];
 
   chatSection.classList.toggle("hidden", !inCollect);
   inputBar.classList.toggle("hidden", !inCollect);
@@ -207,20 +281,33 @@ function renderQuestionInputArea() {
     return;
   }
 
-  const optional = question.optional ? "（任意）" : "";
-  questionLabel.textContent = `${question.label} ${optional}`.trim();
-  if (question.helper) {
-    questionLabel.textContent += `\n${question.helper}`;
+  if (isFreeQuestionMode) {
+    questionLabel.textContent = "自由質問メモを入力してください（任意回数）";
+    answerInput.placeholder = "例: スマホ表示で気をつける点は？";
+    answerInput.value = "";
+    submitBtn.textContent = "メモ追加";
+    addFreeBtn.textContent = "通常入力に戻る";
+    return;
   }
 
+  const optional = question.optional ? "（任意）" : "";
+  questionLabel.textContent = `${question.label}${optional}`;
   answerInput.placeholder = question.placeholder;
-  answerInput.value = state.flowAnswers[question.key] || "";
+  if (question.key === "category") {
+    answerInput.value = state.flowAnswers.category || "";
+    answerInput.readOnly = true;
+  } else {
+    answerInput.readOnly = false;
+    answerInput.value = state.flowAnswers[question.key] || "";
+  }
+
+  submitBtn.textContent = "送信";
+  addFreeBtn.textContent = "＋自由質問";
 }
 
 function renderResult() {
   const isResult = state.mode === "result";
   resultSection.classList.toggle("hidden", !isResult);
-
   if (!isResult) return;
 
   resultText.value = buildPrompt();
@@ -233,13 +320,14 @@ function renderResult() {
     return;
   }
 
-  state.freeQuestions.forEach((question, index) => {
+  state.freeQuestions.forEach((question) => {
     const li = document.createElement("li");
     li.className = "free-item";
     li.textContent = question;
 
     const btn = document.createElement("button");
-    btn.className = "inline-copy";
+    btn.type = "button";
+    btn.className = "inline-copy secondary";
     btn.textContent = "個別コピー";
     btn.addEventListener("click", () => copyText(question));
 
@@ -251,8 +339,17 @@ function renderResult() {
 function handleSubmit() {
   if (state.mode !== "collect") return;
 
+  if (isFreeQuestionMode) {
+    handleFreeQuestionSubmit();
+    return;
+  }
+
   const question = QUESTIONS[state.stepIndex];
   let answer = answerInput.value.trim();
+
+  if (question.key === "category") {
+    answer = state.flowAnswers.category;
+  }
 
   if (!answer && question.optional) {
     answer = "未入力";
@@ -261,14 +358,6 @@ function handleSubmit() {
   if (!answer) {
     showToast("入力してから送信してください");
     return;
-  }
-
-  if (question.key === "category") {
-    answer = normalizeCategory(answer);
-    if (!answer) {
-      showToast("用途カテゴリは1〜8の番号または候補名で入力してください");
-      return;
-    }
   }
 
   state.flowAnswers[question.key] = answer;
@@ -287,16 +376,23 @@ function handleSubmit() {
   renderAll();
 }
 
-function handleAddFreeQuestion() {
-  const text = window.prompt("自由質問を入力してください（あとで「追加の確認事項」に入ります）", "例: スマホでの表示崩れを避けるコツは？");
+function toggleFreeQuestionMode() {
+  if (state.mode !== "collect") return;
+  isFreeQuestionMode = !isFreeQuestionMode;
+  renderQuestionInputArea();
+  answerInput.focus();
+}
 
-  if (!text) return;
-
-  const value = text.trim();
-  if (!value) return;
+function handleFreeQuestionSubmit() {
+  const value = answerInput.value.trim();
+  if (!value) {
+    showToast("自由質問メモを入力してください");
+    return;
+  }
 
   state.freeQuestions.push(value);
   pushLog("free", `自由質問メモ: ${value}`);
+  isFreeQuestionMode = false;
 
   if (state.autosaveEnabled) saveState();
   renderAll();
@@ -309,7 +405,9 @@ function handleResetAll() {
   const autosaveEnabled = state.autosaveEnabled;
   state = JSON.parse(JSON.stringify(DEFAULT_STATE));
   state.autosaveEnabled = autosaveEnabled;
-  appendQuestionToLog(QUESTIONS[0]);
+  state.chatLog.push({ type: "question", text: `案内: ${QUESTIONS[0].label}`, at: Date.now() });
+  isFreeQuestionMode = false;
+
   if (state.autosaveEnabled) saveState();
   renderAll();
 }
@@ -324,27 +422,11 @@ function handleClearStorage() {
 
 function appendQuestionToLog(question) {
   const optional = question.optional ? "（任意）" : "";
-  let text = `案内: ${question.label}${optional}`;
-  if (question.helper) {
-    text += `\n${question.helper}`;
-  }
-  pushLog("question", text);
+  pushLog("question", `案内: ${question.label}${optional}`);
 }
 
 function pushLog(type, text) {
   state.chatLog.push({ type, text, at: Date.now() });
-}
-
-function normalizeCategory(raw) {
-  const trimmed = raw.trim();
-  const asNumber = Number(trimmed);
-
-  if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= CATEGORY_OPTIONS.length) {
-    return CATEGORY_OPTIONS[asNumber - 1][0];
-  }
-
-  const found = CATEGORY_OPTIONS.find((item) => item[0] === trimmed);
-  return found ? found[0] : "";
 }
 
 function buildPrompt() {
@@ -416,11 +498,26 @@ function fallbackCopy(text) {
   const temp = document.createElement("textarea");
   temp.value = text;
   temp.setAttribute("readonly", "");
-  temp.style.position = "absolute";
+  temp.style.position = "fixed";
   temp.style.left = "-9999px";
   document.body.appendChild(temp);
+  temp.focus();
   temp.select();
-  showToast("コピーできない場合は Ctrl+C / 長押しコピーを使ってください");
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    copied = false;
+  }
+
+  document.body.removeChild(temp);
+
+  if (copied) {
+    showToast("コピーしました");
+  } else {
+    showToast("Ctrl+C / 長押しコピーでコピーしてください");
+  }
 }
 
 function showToast(message) {
@@ -439,7 +536,7 @@ function loadState() {
     }
 
     const parsed = JSON.parse(raw);
-    return {
+    const loaded = {
       ...JSON.parse(JSON.stringify(DEFAULT_STATE)),
       ...parsed,
       flowAnswers: {
@@ -449,8 +546,16 @@ function loadState() {
       freeQuestions: Array.isArray(parsed.freeQuestions) ? parsed.freeQuestions : [],
       chatLog: Array.isArray(parsed.chatLog) ? parsed.chatLog : [],
     };
+
+    if (loaded.chatLog.length === 0 && loaded.mode === "collect") {
+      loaded.chatLog.push({ type: "question", text: `案内: ${QUESTIONS[loaded.stepIndex].label}`, at: Date.now() });
+    }
+
+    return loaded;
   } catch (error) {
-    return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    const fallback = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    fallback.chatLog.push({ type: "question", text: `案内: ${QUESTIONS[0].label}`, at: Date.now() });
+    return fallback;
   }
 }
 

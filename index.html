@@ -10,17 +10,30 @@
     <header class="app-header">
       <h1>やさしいプロンプトジェネレーター</h1>
       <p id="progressText" class="progress">質問 1/8</p>
+      <details class="top-details">
+        <summary>詳細（使い方・やり直し）</summary>
+        <div class="details-box">
+          <p>迷ったら「送信」だけで進めます。必要なら「＋自由質問」でメモできます。</p>
+          <button id="resetBtn" class="danger" type="button">最初からやり直し</button>
+        </div>
+      </details>
     </header>
 
     <main class="app-main" aria-live="polite">
-      <section id="howToCard" class="card howto hidden" role="dialog" aria-modal="true" aria-label="30秒でわかる使い方">
+      <section
+        id="howToCard"
+        class="card howto hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="30秒でわかる使い方"
+      >
         <h2>30秒でわかる使い方</h2>
         <ol>
-          <li>下の入力欄に答えを入れて「送信」を押します。</li>
+          <li>質問に答えて「送信」を押します。</li>
           <li>途中で「＋自由質問」を押すと、気になる点をメモできます。</li>
           <li>最後に自動生成された文章を「コピー」して使います。</li>
         </ol>
-        <button id="closeHowToBtn" class="primary">わかった</button>
+        <button id="closeHowToBtn" class="primary" type="button">わかった</button>
       </section>
 
       <section class="card storage-card">
@@ -30,9 +43,16 @@
           <input id="autosaveToggle" type="checkbox" />
         </label>
         <p id="storageHint" class="hint"></p>
+        <details>
+          <summary>保存データの操作</summary>
+          <div class="details-box">
+            <button id="clearStorageBtn" type="button">保存データ削除</button>
+          </div>
+        </details>
       </section>
 
       <section id="chatSection" class="card chat-section">
+        <div id="categoryPicker" class="category-picker hidden" aria-label="用途カテゴリ選択"></div>
         <div id="chatLog" class="chat-log"></div>
       </section>
 
@@ -40,13 +60,12 @@
         <h2>生成プロンプト（Plain Text）</h2>
         <textarea id="resultText" rows="16" readonly></textarea>
         <div class="result-actions">
-          <button id="copyPromptBtn" class="primary">コピー</button>
-          <button id="backToEditBtn">編集に戻る</button>
+          <button id="copyPromptBtn" class="primary" type="button">コピー</button>
+          <button id="backToEditBtn" class="secondary" type="button">編集に戻る</button>
           <details>
-            <summary>詳細（保存削除など）</summary>
-            <div class="details-content">
-              <button id="resetAllBtn" class="danger">最初からやり直し</button>
-              <button id="clearStorageBtn">保存データ削除</button>
+            <summary>詳細（やり直しなど）</summary>
+            <div class="details-box">
+              <button id="resetAllBtn" class="danger" type="button">最初からやり直し</button>
             </div>
           </details>
         </div>
@@ -55,7 +74,7 @@
           <h3>自由質問メモ一覧</h3>
           <ul id="freeQuestionList"></ul>
           <div class="free-actions">
-            <button id="copyFreeListBtn">一覧をコピー</button>
+            <button id="copyFreeListBtn" class="secondary" type="button">一覧をコピー</button>
           </div>
         </section>
       </section>
@@ -70,13 +89,12 @@
         aria-label="回答入力"
       ></textarea>
       <div class="action-row">
-        <button id="submitBtn" class="primary">送信</button>
-        <button id="addFreeBtn">＋自由質問</button>
-        <button id="resetBtn" class="danger">最初からやり直し</button>
+        <button id="submitBtn" class="primary" type="button">送信</button>
+        <button id="addFreeBtn" class="secondary" type="button">＋自由質問</button>
       </div>
     </footer>
 
-    <div id="toast" class="toast" role="status" aria-live="assertive"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="app.js"></script>
   </body>
